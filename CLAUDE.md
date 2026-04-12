@@ -29,6 +29,9 @@ bench run --adapter plain_claude --out runs/pc-$(date +%F)/
 bench metrics runs/<dir>/ --baseline runs/<baseline_dir>/
 bench judge --a runs/<a>/ --b runs/<b>/ --battles 3
 bench report
+
+# one-shot head-to-head (used by the /brainstormingbench:battle plugin command)
+bench battle --a "/plugin-a:cmd" --b "/plugin-b:cmd" --problem product-01
 ```
 
 `bench` is installed as a script (see `[project.scripts]` in
@@ -83,10 +86,30 @@ re-exports function names that shadow the submodule attributes.
 Tests for the judge use a `_FakeClient` in `tests/test_judge.py` rather than
 hitting the Anthropic API.
 
+## Claude Code integration
+
+The repo ships as a Claude Code plugin (`.claude-plugin/plugin.json` plus
+`commands/*.md`). Slash commands invoke the CLI via Bash — they do not
+re-implement the benchmark logic. When editing:
+
+- The slash commands must not ask Claude to brainstorm or judge itself;
+  they always defer to `bench <subcommand>`. Keeping this boundary clean
+  is what makes the benchmark's results reproducible outside a Claude Code
+  session.
+- The `ClaudeSkillAdapter` (`adapters/claude_skill.py`) is how arbitrary
+  slash commands become benchmark adapters. `_build_adapter` auto-wraps
+  anything starting with `/` into a `ClaudeSkillAdapter`. The template
+  must contain `{problem}` (added automatically if absent).
+- `bench battle` is the one-shot head-to-head used by
+  `/brainstormingbench:battle`. It writes `runs/battle-<ts>/{A,B}/*.json`
+  and `runs/battle-<ts>/battle.json`, and prints a verdict summary.
+
 ## File layout (high signal only)
 
 - `adapters/base.py` — `Adapter` ABC, `Idea`, `Response`, and `parse_ideas`
   (bullets → numbered → paragraphs → sentence fallback).
+- `adapters/claude_skill.py` — generic `/slash-command` adapter. Shells out
+  to `claude -p` per problem; tests fake `subprocess.run`.
 - `metrics/_embeddings.py` — singleton sentence-transformers loader.
   Keep all network-touching code here so conftest can patch a single
   surface.
@@ -94,5 +117,7 @@ hitting the Anthropic API.
   and family-disjoint sanity checks.
 - `judge/elo.py` — canonicalization, Elo update, bootstrap CIs,
   `EloLeaderboard.to_markdown`.
-- `cli.py` — Click group with `run`, `metrics`, `judge`, `report`.
+- `cli.py` — Click group with `run`, `battle`, `metrics`, `judge`, `report`.
   Adapter spec parsing lives in `_build_adapter`.
+- `.claude-plugin/plugin.json` + `commands/*.md` — Claude Code plugin
+  surface. Slash commands are thin wrappers over the CLI.

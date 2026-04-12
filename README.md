@@ -38,6 +38,10 @@ bench judge --a runs/plain-claude-2026-04-12/ --b runs/bk-2026-04-12/ --battles 
 
 # 5. regenerate the leaderboard from all saved battles
 bench report
+
+# bonus: one-shot head-to-head on a single problem — fastest way to
+# sanity-check a new brainstorming plugin before committing to a full run
+bench battle --a "/my-plugin:ideas" --b "/brainstorm-kit:brainstorm" --problem product-01
 ```
 
 A full evaluation of one system on the v1 seed set should cost under \$20
@@ -119,6 +123,48 @@ That's the entire contract: the benchmark never reaches inside your system.
 | `single_technique[<name>]`           | baseline: one Opus call in a specific technique (stoner_circle, first_principles, worst_idea) |
 | `brainstorm_kit[auto\|cli\|sdk]`     | external adapter for the brainstorm-kit plugin; picks transport automatically |
 | `human:/path/to/responses_dir/`      | replay pre-written human responses for control / upper-bound    |
+| `/<plugin>:<command>` or `/<skill>`  | **generic Claude Code adapter** — any slash command becomes an adapter; shells out to `claude -p`. `{problem}` is appended automatically. |
+
+### Benchmarking any Claude Code skill or plugin
+
+If your brainstorming system is a Claude Code skill/plugin, you don't need
+to write any Python. Just pass its slash command as the adapter spec:
+
+```bash
+bench run --adapter "/my-plugin:brainstorm" --out runs/my-plugin/
+bench judge --a runs/my-plugin/ --b runs/plain-claude/ --battles 3
+```
+
+Under the hood this wraps `ClaudeSkillAdapter` (`adapters/claude_skill.py`),
+which invokes `claude -p "<your-command> <problem-text>"` in a fresh
+subprocess per problem.
+
+## Claude Code plugin
+
+BrainstormingBench also ships as a Claude Code plugin, so the whole flow
+runs inside a live Claude Code session. Install the plugin (see Claude Code
+plugin docs), then use any of:
+
+| Slash command                                                           | What it does |
+| ----------------------------------------------------------------------- | ------------ |
+| `/brainstormingbench:battle <a-cmd> <b-cmd> <problem-id-or-text>`       | Blinded head-to-head between two skills on one problem, with verdict. |
+| `/brainstormingbench:run <cmd> [tag]`                                   | Run a skill against the full v1 problem set.        |
+| `/brainstormingbench:judge <run-a> <run-b> [battles]`                   | Pairwise Elo judging between two saved runs.        |
+| `/brainstormingbench:metrics <run-dir> [baseline-dir]`                  | Absolute metrics over a saved run.                  |
+| `/brainstormingbench:leaderboard`                                       | Regenerate and show `leaderboard.md`.               |
+
+Quick example inside a Claude Code session:
+
+```
+/brainstormingbench:battle /brainstorm-kit:brainstorm /my-new-plugin:ideas tech-03
+```
+
+This runs both plugins on problem `tech-03` in fresh `claude -p` subprocesses,
+has a Sonnet judge blindly score A vs B three times, and prints the verdict.
+
+The single-problem battle is cheap (two generator calls + three judge calls,
+~\$0.10–0.50 at typical prices) — good for quick iteration on a new
+brainstorming plugin before committing to a full 30-problem run.
 
 ## Metrics, briefly
 
