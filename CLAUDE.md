@@ -92,16 +92,18 @@ The repo ships as a Claude Code plugin distributed via a single-plugin
 marketplace:
 
 - `.claude-plugin/marketplace.json` — exposes the repo to
-  `/plugin marketplace add mgoldwasser/BrainstormingBench`.
-- `.claude-plugin/plugin.json` — plugin manifest.
-- `commands/*.md` — slash commands (`/brainstormingbench:battle`, `:run`,
-  `:judge`, `:metrics`, `:leaderboard`).
-- `agents/brainstorm-runner.md` — subagent that runs a single
+  `/plugin marketplace add mgoldwasser/BrainstormingBench`. Its `source`
+  field must point at a subdirectory (`./plugin`) — the schema rejects a
+  bare `.` even though the plugin is in the same repo.
+- `plugin/.claude-plugin/plugin.json` — plugin manifest.
+- `plugin/commands/*.md` — slash commands (`/brainstormingbench:battle`,
+  `:run`, `:judge`, `:metrics`, `:leaderboard`).
+- `plugin/agents/brainstorm-runner.md` — subagent that runs a single
   brainstorming skill on a single problem. Designed to be spawned N-up
   in parallel from the main session for multi-system evaluations.
-- `skills/brainstorming-eval/SKILL.md` — auto-loads when the session is
-  working on creativity benchmarking; primes Claude with the "pairwise >
-  absolute, blind judging, frozen rubric" mental model.
+- `plugin/skills/brainstorming-eval/SKILL.md` — auto-loads when the
+  session is working on creativity benchmarking; primes Claude with the
+  "pairwise > absolute, blind judging, frozen rubric" mental model.
 
 When editing any of these:
 
@@ -135,5 +137,6 @@ When editing any of these:
   `EloLeaderboard.to_markdown`.
 - `cli.py` — Click group with `run`, `battle`, `metrics`, `judge`, `report`.
   Adapter spec parsing lives in `_build_adapter`.
-- `.claude-plugin/plugin.json` + `commands/*.md` — Claude Code plugin
-  surface. Slash commands are thin wrappers over the CLI.
+- `.claude-plugin/marketplace.json` — marketplace manifest at repo root.
+- `plugin/.claude-plugin/plugin.json` + `plugin/commands/*.md` — Claude
+  Code plugin surface. Slash commands are thin wrappers over the CLI.
