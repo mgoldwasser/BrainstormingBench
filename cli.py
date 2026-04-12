@@ -48,6 +48,14 @@ def _build_adapter(spec: str) -> Adapter:
         brainstorm_kit[cli]               (force transport)
         brainstorm_kit[sdk]
         human:/path/to/responses_dir      (author inferred from dir name)
+
+        # Any Claude Code slash command. The `{problem}` placeholder is
+        # inserted automatically if absent.
+        /my-plugin:brainstorm
+        /my-plugin:brainstorm {problem}
+
+        # Explicit form with a custom tag:
+        claude_skill:/my-plugin:brainstorm {problem}:my-tag
     """
     if spec == "plain_claude":
         from adapters.plain_claude import PlainClaudeAdapter
@@ -71,7 +79,32 @@ def _build_adapter(spec: str) -> Adapter:
             responses_dir=path,
             author_tag=Path(path).name or "anonymous",
         )
+    if spec.startswith("claude_skill:"):
+        from adapters.claude_skill import ClaudeSkillAdapter
+        # claude_skill:<template>:<tag>. Template may itself contain ':',
+        # so rsplit once from the right to separate the tag.
+        rest = spec[len("claude_skill:"):]
+        if ":" in rest:
+            template, tag = rest.rsplit(":", 1)
+        else:
+            template, tag = rest, _auto_tag(rest)
+        if "{problem}" not in template:
+            template = f"{template} {{problem}}"
+        return ClaudeSkillAdapter(command_template=template, tag=tag)
+    if spec.startswith("/"):
+        # Raw slash-command form — auto-wrap into ClaudeSkillAdapter.
+        from adapters.claude_skill import ClaudeSkillAdapter
+        template = spec if "{problem}" in spec else f"{spec} {{problem}}"
+        return ClaudeSkillAdapter(
+            command_template=template, tag=_auto_tag(spec)
+        )
     raise click.BadParameter(f"unknown adapter: {spec!r}")
+
+
+def _auto_tag(spec: str) -> str:
+    """Derive a leaderboard tag from a raw slash-command spec."""
+    head = spec.split(" ", 1)[0]
+    return head.lstrip("/").replace(":", "_").replace("/", "_") or "skill"
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +337,129 @@ def cmd_report(runs_dir: str, out_path: str) -> None:
     Path(out_path).write_text(header + board.to_markdown() + "\n")
     console.print(board.to_markdown())
     console.log(f"wrote {out_path}")
+
+
+# ---------------------------------------------------------------------------
+# bench battle — one-shot head-to-head on a single problem
+# ---------------------------------------------------------------------------
+
+@cli.command("battle")
+@click.option("--a", "a_spec", required=True, help="adapter spec for system A (e.g. a /slash-command)")
+@click.option("--b", "b_spec", required=True, help="adapter spec for system B")
+@click.option(
+    "--problem",
+    required=True,
+    help="a problem id from the problem set (e.g. product-01) OR a literal prompt in quotes",
+)
+@click.option("--battles", type=int, default=3, show_default=True)
+@click.option("--problems", "problems_version", default="v1", show_default=True)
+@click.option("--seed", type=int, default=0, show_default=True)
+@click.option(
+    "--out",
+    "out_dir",
+    type=click.Path(),
+    default=None,
+    help="directory to write A/B responses and battle record (default: runs/battle-<ts>/)",
+)
+def cmd_battle(
+    a_spec: str,
+    b_spec: str,
+    problem: str,
+    battles: int,
+    problems_version: str,
+    seed: int,
+    out_dir: str | None,
+) -> None:
+    """Run a blinded pairwise battle between two systems on a single problem.
+
+    Designed for interactive use inside a Claude Code session via the
+    `/brainstormingbench:battle` slash command. For full v1 evaluation,
+    use `bench run` then `bench judge` then `bench report`.
+    """
+    # Resolve the problem: id lookup first, fall back to literal text.
+    _, problems = _load_problems(problems_version)
+    matched = next((p for p in problems if p["id"] == problem), None)
+    if matched is not None:
+        problem_id = matched["id"]
+        problem_text = matched["prompt"]
+    else:
+        problem_id = "custom"
+        problem_text = problem
+
+    if out_dir is None:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        out_dir = str(Path("runs") / f"battle-{ts}")
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    console.log(f"battle on [bold]{problem_id}[/bold]: {problem_text[:80]}")
+
+    a = _build_adapter(a_spec)
+    b = _build_adapter(b_spec)
+    console.log(f"A = {a.name}")
+    console.log(f"B = {b.name}")
+
+    # Run both generators. Human adapter needs the problem id side-channel.
+    for ad in (a, b):
+        setattr(ad, "_current_problem_id", problem_id)
+
+    a_resp = a.generate(problem_text)
+    a_resp.problem_id = problem_id
+    a_resp.save(out / "A")
+
+    b_resp = b.generate(problem_text)
+    b_resp.problem_id = problem_id
+    b_resp.save(out / "B")
+    console.log(
+        f"A produced {len(a_resp.ideas)} ideas, B produced {len(b_resp.ideas)} ideas"
+    )
+
+    # Judge. Warn if judge family overlaps either generator.
+    judge = PairwiseJudge(rng=random.Random(seed))
+    for w in judge.check_family_disjoint(a_resp, b_resp):
+        console.log(f"[yellow]WARN[/yellow] {w}")
+
+    record = judge.run(
+        problem_text=problem_text,
+        a=a_resp,
+        b=b_resp,
+        problem_id=problem_id,
+        battles=battles,
+    )
+    (out / "battle.json").write_text(
+        json.dumps(
+            {
+                "problem_id": problem_id,
+                "problem_text": problem_text,
+                "problem_set_version": problems_version,
+                "seed": seed,
+                "battles_per_pair": battles,
+                "records": [record.to_json()],
+            },
+            indent=2,
+        )
+    )
+
+    # Show verdict.
+    winner_map = {"A": a.name, "B": b.name, "tie": "tie"}
+    majority = record.majority_winner()
+    console.rule("[bold]Verdict[/bold]")
+    console.print(f"overall winner: [bold]{winner_map[majority]}[/bold]")
+    # sub-criteria tallies
+    sub = {"novelty_winner": {}, "diversity_winner": {}, "usefulness_winner": {}}
+    for b_ in record.battles:
+        for k in sub:
+            v = b_.output.get(k)
+            if v in ("A", "B", "tie"):
+                # position-normalize
+                if b_.order == "B_first":
+                    v = {"A": "B", "B": "A", "tie": "tie"}[v]
+                sub[k][v] = sub[k].get(v, 0) + 1
+    for k, tallies in sub.items():
+        nice = k.replace("_winner", "")
+        ordered = ", ".join(f"{winner_map[w]}={n}" for w, n in sorted(tallies.items(), key=lambda x: -x[1]))
+        console.print(f"  {nice}: {ordered}")
+    console.log(f"wrote {out}/battle.json (and A/, B/)")
 
 
 # ---------------------------------------------------------------------------
