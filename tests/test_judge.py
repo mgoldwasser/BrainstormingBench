@@ -185,7 +185,9 @@ class _FakeClient:
 
             class _R:
                 def __init__(self, o):
-                    self.output = o
+                    # Match the real SDK: messages.parse() returns an object
+                    # whose validated Pydantic instance lives on .parsed_output.
+                    self.parsed_output = o
             return _R(out)
 
 
