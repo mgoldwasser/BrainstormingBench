@@ -88,11 +88,24 @@ hitting the Anthropic API.
 
 ## Claude Code integration
 
-The repo ships as a Claude Code plugin (`.claude-plugin/plugin.json` plus
-`commands/*.md`). Slash commands invoke the CLI via Bash — they do not
-re-implement the benchmark logic. When editing:
+The repo ships as a Claude Code plugin distributed via a single-plugin
+marketplace:
 
-- The slash commands must not ask Claude to brainstorm or judge itself;
+- `.claude-plugin/marketplace.json` — exposes the repo to
+  `/plugin marketplace add mgoldwasser/BrainstormingBench`.
+- `.claude-plugin/plugin.json` — plugin manifest.
+- `commands/*.md` — slash commands (`/brainstormingbench:battle`, `:run`,
+  `:judge`, `:metrics`, `:leaderboard`).
+- `agents/brainstorm-runner.md` — subagent that runs a single
+  brainstorming skill on a single problem. Designed to be spawned N-up
+  in parallel from the main session for multi-system evaluations.
+- `skills/brainstorming-eval/SKILL.md` — auto-loads when the session is
+  working on creativity benchmarking; primes Claude with the "pairwise >
+  absolute, blind judging, frozen rubric" mental model.
+
+When editing any of these:
+
+- Slash commands and subagents must never brainstorm or judge themselves;
   they always defer to `bench <subcommand>`. Keeping this boundary clean
   is what makes the benchmark's results reproducible outside a Claude Code
   session.
@@ -103,6 +116,9 @@ re-implement the benchmark logic. When editing:
 - `bench battle` is the one-shot head-to-head used by
   `/brainstormingbench:battle`. It writes `runs/battle-<ts>/{A,B}/*.json`
   and `runs/battle-<ts>/battle.json`, and prints a verdict summary.
+- The `brainstorm-runner` subagent takes `(skill, problem, out_dir)` and
+  is deliberately a thin wrapper around `bench run` / `claude -p`. If you
+  add features, add them to the CLI, not the subagent.
 
 ## File layout (high signal only)
 
