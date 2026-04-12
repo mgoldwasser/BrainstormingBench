@@ -190,10 +190,10 @@ class PairwiseJudge:
                 system=self._rubric,
                 thinking={"type": "adaptive"},
                 output_config={"effort": "medium"},
-                response_format=JudgeOutput,
+                output_format=JudgeOutput,
                 messages=[{"role": "user", "content": user}],
             )
-            parsed: JudgeOutput = result.output
+            parsed: JudgeOutput = result.parsed_output
             output_dict = parsed.model_dump()
         except Exception as e:  # noqa: BLE001 — we record the failure and move on
             output_dict = {"error": f"{type(e).__name__}: {e}"}
