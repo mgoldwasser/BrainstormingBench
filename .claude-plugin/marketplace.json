@@ -1,0 +1,15 @@
+{
+  "name": "brainstormingbench",
+  "owner": {
+    "name": "mgoldwasser"
+  },
+  "description": "Evaluate and compare Claude Code brainstorming skills against a frozen creativity-psychology problem set, with a blinded pairwise LLM judge and an Elo leaderboard.",
+  "plugins": [
+    {
+      "name": "brainstormingbench",
+      "source": ".",
+      "description": "Slash commands (/brainstormingbench:battle, :run, :judge, :metrics, :leaderboard), the `brainstorm-runner` subagent for parallel multi-system evaluation, and the `brainstorming-eval` skill that loads when the session is working on creativity benchmarking.",
+      "keywords": ["brainstorming", "evaluation", "benchmark", "creativity", "elo", "judge"]
+    }
+  ]
+}

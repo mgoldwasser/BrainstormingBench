@@ -57,22 +57,33 @@ executable from any shell.
 ### 2. Claude Code plugin (optional)
 
 Install the plugin to use `/brainstormingbench:battle`, `...:run`, etc.
-from inside a Claude Code session.
+from inside a Claude Code session. The plugin also ships a **subagent**
+(`brainstorm-runner`) and a **skill** (`brainstorming-eval`) so the main
+session can evaluate multiple systems in parallel — see "What you get"
+below.
 
-**From the cloned repo** — easiest if you're already set up for CLI use:
+**Preferred: install via the plugin marketplace** (mirrors the
+brainstorm-kit install UX):
+
+```
+/plugin marketplace add mgoldwasser/BrainstormingBench
+/plugin install brainstormingbench@brainstormingbench
+```
+
+**Alternative: direct install from a local clone:**
 
 ```
 /plugin install /absolute/path/to/brainstormingbench
 ```
 
-**From git** — no clone required:
+**Alternative: direct install from git:**
 
 ```
 /plugin install https://github.com/mgoldwasser/brainstormingbench.git
 ```
 
-**By hand**, if your Claude Code build doesn't expose `/plugin install`,
-add an entry to `~/.claude/settings.json`:
+**Manual wiring**, if your Claude Code build doesn't expose `/plugin
+install`, add an entry to `~/.claude/settings.json`:
 
 ```json
 {
@@ -82,21 +93,32 @@ add an entry to `~/.claude/settings.json`:
 }
 ```
 
-Then restart Claude Code.
+Restart Claude Code after editing settings.
 
-Sanity-check from a Claude Code session:
+#### What you get after installing the plugin
+
+- **Slash commands** (see the table in the next section) — the primary UI.
+- **`brainstorm-runner` subagent** — invoke via the Agent tool to run one
+  brainstorming skill on one problem. Spawn N in parallel to evaluate N
+  systems without serializing their calls.
+- **`brainstorming-eval` skill** — auto-loads when the session is working
+  on creativity evaluation; gives Claude the benchmark's mental model
+  (pairwise > absolute, blind judging, frozen rubric, etc.) without you
+  having to re-explain it.
+
+#### Sanity-check from a Claude Code session
 
 ```
 !bench --help
 ```
 
 If Click's help text prints, the plugin's slash commands will work. If you
-see `bench: command not found`, the CLI isn't on the PATH Claude Code's
-Bash tool uses — activate the venv in the shell that starts Claude Code, or
-`pip install -e .` outside a venv so `bench` lands somewhere globally
+see `bench: command not found`, the CLI isn't on the `PATH` Claude Code's
+Bash tool uses — activate the venv in the shell that starts Claude Code,
+or `pip install -e .` outside a venv so `bench` lands somewhere globally
 visible.
 
-End-to-end smoke test (no full 30-problem run required):
+#### End-to-end smoke test
 
 ```
 /brainstormingbench:battle /brainstorm-kit:brainstorm plain_claude product-01
@@ -104,7 +126,19 @@ End-to-end smoke test (no full 30-problem run required):
 
 This runs both systems in fresh `claude -p` subprocesses, has a Sonnet
 judge score them blind three times, and prints the verdict — typically
-under a minute and well under \$1.
+under a minute and well under \$1. No full 30-problem run required.
+
+#### Parallel multi-system evaluation (subagent pattern)
+
+Ask the session something like:
+
+> Compare `/brainstorm-kit:brainstorm`, `/my-other-plugin:ideas`, and
+> `plain_claude` on `product-01`. Run them in parallel, then judge.
+
+With the `brainstorming-eval` skill loaded, Claude will spawn three
+`brainstorm-runner` subagents concurrently (via the Agent tool), wait for
+all three to finish, and then invoke `bench judge` or `bench battle` to
+produce the verdict. Wall-time is the slowest single run, not the sum.
 
 ## Quickstart
 

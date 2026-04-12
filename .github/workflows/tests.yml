@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# If a new commit lands on the same branch, cancel the in-flight run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      # Keep running other Python versions even if one fails — makes it
+      # obvious when a break is version-specific.
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # Install CPU-only torch first so the subsequent editable install
+      # doesn't drag in ~2GB of CUDA wheels. sentence-transformers sees
+      # torch is already satisfied and skips it.
+      - name: Install CPU-only torch
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install package (with dev deps)
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest -q
