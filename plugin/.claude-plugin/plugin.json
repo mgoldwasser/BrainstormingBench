@@ -2,7 +2,9 @@
   "name": "brainstormingbench",
   "version": "0.1.0",
   "description": "Evaluate and compare Claude Code brainstorming skills/plugins against a frozen creativity-psychology problem set, using a blinded pairwise LLM judge and an Elo leaderboard.",
-  "author": "BrainstormingBench contributors",
+  "author": {
+    "name": "BrainstormingBench contributors"
+  },
   "homepage": "https://github.com/mgoldwasser/brainstormingbench",
   "keywords": ["brainstorming", "evaluation", "benchmark", "creativity", "elo"]
 }
