@@ -18,12 +18,97 @@ plugged in via the [`Adapter`](adapters/base.py) interface, and the
 [github.com/mgoldwasser/ClaudeBrainstorming](https://github.com/mgoldwasser/ClaudeBrainstorming))
 talks to that plugin externally — nothing in this repo imports it.
 
+## Installation
+
+There are two pieces to install: the Python CLI (`bench`) and, optionally,
+the Claude Code plugin that wraps it in slash commands. The plugin is a
+thin UI over the CLI, so the CLI must be installed first.
+
+### 1. Python CLI
+
+Requires Python ≥ 3.10 and an Anthropic API key.
+
+```bash
+git clone https://github.com/mgoldwasser/brainstormingbench.git
+cd brainstormingbench
+
+# recommended: isolate in a venv
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+
+# editable install; drop [dev] if you don't need the tests
+pip install -e ".[dev]"
+
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Verify:
+
+```bash
+bench --help     # should list run / battle / metrics / judge / report
+pytest -q        # should report "43 passed"
+```
+
+The `-e` (editable) install means `git pull` picks up new code without
+reinstalling. If you skip the venv and install globally, make sure the
+directory `pip` writes scripts to is on your `PATH` — `bench` must be
+executable from any shell.
+
+### 2. Claude Code plugin (optional)
+
+Install the plugin to use `/brainstormingbench:battle`, `...:run`, etc.
+from inside a Claude Code session.
+
+**From the cloned repo** — easiest if you're already set up for CLI use:
+
+```
+/plugin install /absolute/path/to/brainstormingbench
+```
+
+**From git** — no clone required:
+
+```
+/plugin install https://github.com/mgoldwasser/brainstormingbench.git
+```
+
+**By hand**, if your Claude Code build doesn't expose `/plugin install`,
+add an entry to `~/.claude/settings.json`:
+
+```json
+{
+  "plugins": [
+    { "path": "/absolute/path/to/brainstormingbench" }
+  ]
+}
+```
+
+Then restart Claude Code.
+
+Sanity-check from a Claude Code session:
+
+```
+!bench --help
+```
+
+If Click's help text prints, the plugin's slash commands will work. If you
+see `bench: command not found`, the CLI isn't on the PATH Claude Code's
+Bash tool uses — activate the venv in the shell that starts Claude Code, or
+`pip install -e .` outside a venv so `bench` lands somewhere globally
+visible.
+
+End-to-end smoke test (no full 30-problem run required):
+
+```
+/brainstormingbench:battle /brainstorm-kit:brainstorm plain_claude product-01
+```
+
+This runs both systems in fresh `claude -p` subprocesses, has a Sonnet
+judge score them blind three times, and prints the verdict — typically
+under a minute and well under \$1.
+
 ## Quickstart
 
 ```bash
-pip install -e ".[dev]"
-export ANTHROPIC_API_KEY=sk-ant-...
-
 # 1. run a baseline adapter on the v1 problem set (30 problems)
 bench run --adapter plain_claude --out runs/plain-claude-2026-04-12/
 
