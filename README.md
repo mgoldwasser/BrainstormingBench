@@ -26,7 +26,9 @@ thin UI over the CLI, so the CLI must be installed first.
 
 ### 1. Python CLI
 
-Requires Python ≥ 3.10 and an Anthropic API key.
+Requires Python ≥ 3.10. **No Anthropic API key required** — by default the
+benchmark routes every model call through the `claude` CLI
+(`claude -p`), so auth is your Claude Code subscription.
 
 ```bash
 git clone https://github.com/mgoldwasser/brainstormingbench.git
@@ -38,21 +40,41 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
 # editable install; drop [dev] if you don't need the tests
 pip install -e ".[dev]"
-
-export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 Verify:
 
 ```bash
 bench --help     # should list run / battle / metrics / judge / report
-pytest -q        # should report "43 passed"
+pytest -q        # should report "56 passed"
+claude --help    # required for the default (subscription) transport
 ```
 
 The `-e` (editable) install means `git pull` picks up new code without
 reinstalling. If you skip the venv and install globally, make sure the
 directory `pip` writes scripts to is on your `PATH` — `bench` must be
 executable from any shell.
+
+#### Transports: subscription vs API key
+
+| Transport | Auth                     | When it's used                                                            |
+| --------- | ------------------------ | ------------------------------------------------------------------------- |
+| `cli` (default) | Claude Code subscription | Default if `claude` is on PATH; every generator and the judge shell out to `claude -p`. No API key touched. |
+| `api`     | `ANTHROPIC_API_KEY`      | Opt-in via `BENCH_TRANSPORT=api`. Uses the Anthropic SDK directly — useful for CI / batch runs without a Claude Code install. |
+
+Forced selection:
+
+```bash
+# force subscription (fails loudly if `claude` isn't on PATH)
+export BENCH_TRANSPORT=cli
+
+# force API key (fails loudly if ANTHROPIC_API_KEY isn't set)
+export BENCH_TRANSPORT=api
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+If `BENCH_TRANSPORT` is unset, the benchmark picks `cli` when `claude` is on
+PATH, otherwise `api`.
 
 ### 2. Claude Code plugin (optional)
 
@@ -163,8 +185,10 @@ bench report
 bench battle --a "/my-plugin:ideas" --b "/brainstorm-kit:brainstorm" --problem product-01
 ```
 
-A full evaluation of one system on the v1 seed set should cost under \$20
-and finish in under 30 minutes on the Anthropic API.
+A full evaluation of one system on the v1 seed set finishes in roughly 30
+minutes of wall-time. With the default `cli` transport the spend is your
+Claude Code subscription usage; with `BENCH_TRANSPORT=api` it runs under
+\$20 on the Anthropic API.
 
 ## Design principles
 

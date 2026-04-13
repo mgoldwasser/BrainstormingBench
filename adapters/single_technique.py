@@ -7,17 +7,20 @@ technique string can be passed.
 
 This exists mostly to check that "any technique" beats "no technique". If it
 doesn't, that's a signal the harness or metrics are broken.
+
+Transport follows `adapters._transport.default_transport()` — CLI (subscription)
+by default, SDK (API key) via `BENCH_TRANSPORT=api`.
 """
 
 from __future__ import annotations
 
-import os
-import time
-from typing import Any
-
+from adapters._transport import (
+    DEFAULT_GENERATOR_MODEL,
+    default_transport,
+    generate_via_api,
+    generate_via_cli,
+)
 from adapters.base import Adapter, Response, parse_ideas
-
-_MODEL = "claude-opus-4-6"
 
 _TECHNIQUES: dict[str, str] = {
     "stoner_circle": (
@@ -53,8 +56,9 @@ class SingleTechniqueAdapter(Adapter):
     def __init__(
         self,
         technique: str = "stoner_circle",
-        model: str = _MODEL,
+        model: str = DEFAULT_GENERATOR_MODEL,
         max_tokens: int = 8192,
+        transport: str | None = None,
     ) -> None:
         if technique not in _TECHNIQUES:
             raise ValueError(
@@ -63,45 +67,32 @@ class SingleTechniqueAdapter(Adapter):
         self._technique = technique
         self._model = model
         self._max_tokens = max_tokens
-        self.name = f"single_technique[{technique}]@0.1"
+        self._transport = transport or default_transport()
+        self.name = f"single_technique[{technique}]@0.2"
 
     def generate(self, problem: str) -> Response:
-        from anthropic import Anthropic
-
-        client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-
         system = _SYSTEM_TEMPLATE.format(technique_body=_TECHNIQUES[self._technique])
-        started = time.time()
-        raw_chunks: list[str] = []
-        usage: dict[str, Any] = {}
-        with client.messages.stream(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            system=system,
-            thinking={"type": "adaptive"},
-            messages=[{"role": "user", "content": f"Problem:\n{problem}"}],
-        ) as stream:
-            for text in stream.text_stream:
-                raw_chunks.append(text)
-            final = stream.get_final_message()
-            if final.usage is not None:
-                usage = {
-                    "input_tokens": final.usage.input_tokens,
-                    "output_tokens": final.usage.output_tokens,
-                }
+        user = f"Problem:\n{problem}"
 
-        raw = "".join(raw_chunks)
-        latency = time.time() - started
-        ideas = parse_ideas(raw, origin=self._technique)
+        if self._transport == "cli":
+            raw, meta = generate_via_cli(
+                system_prompt=system,
+                user_prompt=user,
+                model=self._model,
+            )
+        else:
+            raw, meta = generate_via_api(
+                system_prompt=system,
+                user_prompt=user,
+                model=self._model,
+                max_tokens=self._max_tokens,
+            )
+
+        meta["technique"] = self._technique
         return Response(
             problem_id="",
             system=self.name,
-            ideas=ideas,
+            ideas=parse_ideas(raw, origin=self._technique),
             raw=raw,
-            meta={
-                "model": self._model,
-                "technique": self._technique,
-                "latency_s": round(latency, 2),
-                **usage,
-            },
+            meta=meta,
         )

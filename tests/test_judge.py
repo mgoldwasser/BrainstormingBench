@@ -201,10 +201,11 @@ def _resp(name: str, ideas: list[str]) -> Response:
     )
 
 
-def test_pairwise_runs_n_battles_with_randomized_order() -> None:
+def test_pairwise_api_transport_runs_n_battles_with_randomized_order() -> None:
     judge = PairwiseJudge(
         rng=random.Random(123),
         client=_FakeClient(verdict="A"),
+        transport="api",
     )
     a = _resp("sys_a", ["alpha", "beta"])
     b = _resp("sys_b", ["gamma", "delta"])
@@ -215,10 +216,60 @@ def test_pairwise_runs_n_battles_with_randomized_order() -> None:
     assert orders == {"A_first", "B_first"}
 
 
+def test_pairwise_cli_transport_uses_injected_runner() -> None:
+    """CLI transport: inject a fake `runner` callable instead of shelling out."""
+    from judge.pairwise import JudgeOutput
+
+    calls: list[dict] = []
+
+    def fake_runner(system, user, output_format, model, effort):
+        calls.append({
+            "system_is_rubric": "FROZEN" in system or "blinded" in system.lower() or "rubric" in system.lower(),
+            "user_has_both_responses": "Response A" in user and "Response B" in user,
+            "output_format_is_pydantic": output_format is JudgeOutput,
+            "model": model,
+            "effort": effort,
+        })
+        return (
+            output_format(
+                reasoning="fake cli reasoning",
+                novelty_winner="B",
+                diversity_winner="B",
+                usefulness_winner="B",
+                winner="B",
+            ),
+            {"transport": "claude_cli", "model": model, "latency_s": 0.1},
+        )
+
+    judge = PairwiseJudge(
+        rng=random.Random(0),
+        transport="cli",
+        runner=fake_runner,
+    )
+    a = _resp("sys_a", ["alpha"])
+    b = _resp("sys_b", ["beta"])
+    rec = judge.run(problem_text="problem", a=a, b=b, problem_id="p", battles=3)
+
+    assert len(rec.battles) == 3
+    assert len(calls) == 3
+    # model is Sonnet per the judge default
+    assert all(c["model"] == "claude-sonnet-4-6" for c in calls)
+    assert all(c["effort"] == "medium" for c in calls)
+    assert all(c["output_format_is_pydantic"] for c in calls)
+    # each battle's output is the canned verdict, not an error
+    for b_ in rec.battles:
+        assert "error" not in b_.output
+        assert b_.output["winner"] == "B"
+
+
 def test_pairwise_flags_same_family_judge() -> None:
     # Judge sonnet vs generator sonnet → warning.
     a = Response("p", "s1", [Idea("x")], "x", meta={"model": "claude-sonnet-4-6"})
     b = Response("p", "s2", [Idea("y")], "y", meta={"model": "claude-opus-4-6"})
-    judge = PairwiseJudge(judge_model="claude-sonnet-4-6", client=_FakeClient())
+    judge = PairwiseJudge(
+        judge_model="claude-sonnet-4-6",
+        client=_FakeClient(),
+        transport="api",
+    )
     warnings = judge.check_family_disjoint(a, b)
     assert any("sonnet" in w for w in warnings)

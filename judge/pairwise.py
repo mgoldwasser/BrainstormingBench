@@ -137,12 +137,24 @@ class PairwiseJudge:
         self,
         judge_model: str = _JUDGE_MODEL,
         rng: random.Random | None = None,
-        client=None,  # injectable for tests
+        client=None,       # SDK client, injectable for tests (api transport only)
+        transport: str | None = None,
+        runner=None,       # callable(system, user, output_format, model, effort) → (parsed, meta)
+                           # injectable for tests (cli transport)
     ) -> None:
         self._judge_model = judge_model
         self._rng = rng or random.Random()
         self._client = client
         self._rubric = _load_rubric()
+        self._runner = runner
+        # default_transport is imported lazily to avoid pulling adapters._transport
+        # into modules that don't need it.
+        if transport is None:
+            from adapters._transport import default_transport
+            transport = default_transport()
+        if transport not in {"cli", "api"}:
+            raise ValueError(f"unknown transport {transport!r}")
+        self._transport = transport
 
     # ------------------------------------------------------------------
     # sanity checks
@@ -181,19 +193,35 @@ class PairwiseJudge:
             b_text=_render_response(second),
         )
 
-        client = self._client or _default_client()
-
         try:
-            result = client.messages.parse(
-                model=self._judge_model,
-                max_tokens=4096,
-                system=self._rubric,
-                thinking={"type": "adaptive"},
-                output_config={"effort": "medium"},
-                output_format=JudgeOutput,
-                messages=[{"role": "user", "content": user}],
-            )
-            parsed: JudgeOutput = result.parsed_output
+            if self._transport == "cli":
+                if self._runner is not None:
+                    parsed, _meta = self._runner(
+                        self._rubric, user, JudgeOutput, self._judge_model, "medium"
+                    )
+                else:
+                    from adapters._transport import parse_via_cli
+
+                    parsed, _meta = parse_via_cli(
+                        system_prompt=self._rubric,
+                        user_prompt=user,
+                        output_format=JudgeOutput,
+                        model=self._judge_model,
+                        effort="medium",
+                    )
+            else:
+                # API transport — SDK client is injectable for tests.
+                client = self._client or _default_client()
+                result = client.messages.parse(
+                    model=self._judge_model,
+                    max_tokens=4096,
+                    system=self._rubric,
+                    thinking={"type": "adaptive"},
+                    output_config={"effort": "medium"},
+                    output_format=JudgeOutput,
+                    messages=[{"role": "user", "content": user}],
+                )
+                parsed = result.parsed_output
             output_dict = parsed.model_dump()
         except Exception as e:  # noqa: BLE001 — we record the failure and move on
             output_dict = {"error": f"{type(e).__name__}: {e}"}
