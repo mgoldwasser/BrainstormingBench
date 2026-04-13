@@ -72,6 +72,12 @@ markdown leaderboard.
 - **Model strings are exact.** `claude-opus-4-6` / `claude-sonnet-4-6`.
   No date suffixes. Adaptive thinking (`thinking={"type": "adaptive"}`),
   no `budget_tokens`.
+- **Two transports, CLI is default.** `adapters/_transport.py` centralizes
+  the choice between `cli` (`claude -p` subprocess, subscription auth) and
+  `api` (Anthropic SDK, `ANTHROPIC_API_KEY`). `default_transport()` picks
+  `cli` when `claude` is on PATH, else `api`; `BENCH_TRANSPORT=cli|api`
+  forces. Every generator and the judge must go through this module — no
+  new direct `Anthropic()` calls outside `_transport.py`.
 
 ## Testing notes
 
