@@ -199,7 +199,7 @@ def parse_ideas(raw: str) -> list[str]:
     if current:
         bulleted.append(" ".join(current).strip())
 
-    if len(bulleted) >= 2:
+    if bulleted:
         return [t for t in bulleted if t]
 
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", raw) if p.strip()]
@@ -278,14 +278,24 @@ def run_skill(skill_spec: str, problem_text: str, *, allow_everything: bool = Fa
 
 JUDGE_SCHEMA = {
     "type": "object",
-    "required": ["reasoning", "novelty_winner", "diversity_winner",
-                 "usefulness_winner", "winner"],
+    "required": [
+        "reasoning",
+        "best_idea_a", "best_idea_b",
+        "novelty_winner", "diversity_winner", "usefulness_winner",
+        "insight_winner", "practicality_winner", "differentiation_winner",
+        "winner",
+    ],
     "additionalProperties": False,
     "properties": {
         "reasoning": {"type": "string"},
+        "best_idea_a": {"type": "string"},
+        "best_idea_b": {"type": "string"},
         "novelty_winner": {"enum": ["A", "B", "tie"]},
         "diversity_winner": {"enum": ["A", "B", "tie"]},
         "usefulness_winner": {"enum": ["A", "B", "tie"]},
+        "insight_winner": {"enum": ["A", "B", "tie"]},
+        "practicality_winner": {"enum": ["A", "B", "tie"]},
+        "differentiation_winner": {"enum": ["A", "B", "tie"]},
         "winner": {"enum": ["A", "B", "tie"]},
     },
 }
@@ -611,7 +621,10 @@ def cmd_battle(args: argparse.Namespace) -> None:
     winner_map = {"A": args.a, "B": args.b, "tie": "tie"}
     print("---", file=sys.stderr)
     print(f"Verdict: {winner_map[majority_winner(record)]}", file=sys.stderr)
-    sub = {"novelty_winner": {}, "diversity_winner": {}, "usefulness_winner": {}}
+    sub = {
+        "novelty_winner": {}, "diversity_winner": {}, "usefulness_winner": {},
+        "insight_winner": {}, "practicality_winner": {}, "differentiation_winner": {},
+    }
     for b in record["battles"]:
         for k in sub:
             v = (b.get("output") or {}).get(k)

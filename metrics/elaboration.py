@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from adapters.base import Response
+from metrics._types import Response
 
 # Mechanism words — any of these suggest the idea carries an explanation of
 # *why* or *how* it works, not just what it is.

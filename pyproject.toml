@@ -10,16 +10,13 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Matt Goldwasser" }]
+# Researcher path only — needed for `bench metrics`. The plugin path
+# (`plugin/scripts/bench.py` for run/battle/judge/report) is stdlib-only.
 dependencies = [
-    "anthropic>=0.40.0",
-    "pyyaml>=6.0",
     "numpy>=1.26",
     "scikit-learn>=1.4",
     "hdbscan>=0.8.33",
     "sentence-transformers>=2.7",
-    "click>=8.1",
-    "rich>=13.7",
-    "pydantic>=2.6",
 ]
 
 [project.optional-dependencies]
@@ -29,13 +26,13 @@ dev = [
 ]
 
 [project.scripts]
-bench = "cli:cli"
+bench = "cli:main"
 
 [tool.setuptools]
 py-modules = ["cli"]
 
 [tool.setuptools.packages.find]
-include = ["adapters*", "metrics*", "judge*"]
+include = ["metrics*"]
 exclude = ["runs*", "tests*"]
 
 [tool.pytest.ini_options]

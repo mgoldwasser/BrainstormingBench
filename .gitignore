@@ -36,3 +36,6 @@ runs/*
 # Cached embeddings / judge outputs that may contain sensitive prompts
 .cache/
 *.embeddings.npy
+
+# Claude Code session-local state (scheduled tasks, local settings)
+.claude/

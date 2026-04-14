@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from adapters.base import Response
+from metrics._types import Response
 from metrics._embeddings import cosine_sim_matrix, embed
 
 DUPLICATE_THRESHOLD = 0.85
