@@ -12,7 +12,7 @@ import math
 import numpy as np
 import pytest
 
-from adapters.base import Idea, Response
+from metrics._types import Idea, Response
 from metrics.elaboration import elaboration
 from metrics.fluency import distinct_texts, fluency
 from metrics.originality import (

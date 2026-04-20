@@ -4,145 +4,130 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-BrainstormingBench is a Python evaluation framework for brainstorming / creativity
-systems. It scores black-box systems on four creativity-psychology metrics
-(fluency, flexibility, originality, elaboration) and runs pairwise
-LLM-judge battles that are aggregated into an Elo leaderboard with bootstrap
-confidence intervals. See `README.md` for user-facing docs.
+BrainstormingBench is a Claude Code plugin for evaluating brainstorming /
+creativity systems. It runs blinded pairwise battles between any two
+`/slash-command` systems and aggregates them into an Elo leaderboard with
+bootstrap CIs. A separate researcher-only path computes four absolute
+creativity-psychology metrics (fluency, flexibility, originality,
+elaboration) over a run directory. See `README.md` for user-facing docs.
+
+## Two-tier architecture
+
+The repo has **two independent entry points** serving different audiences:
+
+1. **Plugin path — stdlib only.** `plugin/scripts/bench.py` owns `run`,
+   `battle`, `judge`, and `report`. It shells out to `claude -p` for both
+   generators and judge and has no pip dependencies. The
+   `/brainstormingbench:*` slash commands are thin wrappers over this
+   script; users install the plugin and run immediately — no
+   `pip install` required.
+
+2. **Researcher path — pip-installed.** `cli.py` + `metrics/` exposes
+   `bench metrics <run-dir>`, depending on numpy and sentence-transformers
+   via `metrics/_embeddings.py`. This path is only needed for absolute
+   metric scoring; it consumes run directories produced by the plugin
+   path.
+
+The two paths are deliberately decoupled: `metrics/` has no imports from
+outside itself (see `metrics/_types.py` for the local `Response`/`Idea`
+dataclasses that mirror the on-disk JSON shape written by `bench.py run`).
+Changes to one path should not require changes in the other.
 
 ## Common commands
 
 ```bash
-# install (editable, with dev deps)
+# researcher path only (plugin path needs no install)
 pip install -e ".[dev]"
 
-# run the test suite (offline — embeddings are patched in conftest)
-pytest
+# run the test suite (offline — embeddings patched in conftest)
+python -m pytest
 
-# run a single test file / test
-pytest tests/test_metrics.py
-pytest tests/test_metrics.py::test_fluency_collapses_near_duplicates
+# researcher CLI (metrics only)
+python -m cli metrics runs/<dir>/ --baseline runs/<baseline_dir>/
 
-# the CLI — entry point is cli.py at the repo root
-python -m cli --help
-bench run --adapter plain_claude --out runs/pc-$(date +%F)/
-bench metrics runs/<dir>/ --baseline runs/<baseline_dir>/
-bench judge --a runs/<a>/ --b runs/<b>/ --battles 3
-bench report
-
-# one-shot head-to-head (used by the /brainstormingbench:battle plugin command)
-bench battle --a "/plugin-a:cmd" --b "/plugin-b:cmd" --problem product-01
+# plugin CLI (stdlib — invoked by slash commands, runnable directly)
+python3 plugin/scripts/bench.py run --skill /plain-claude --out runs/pc/
+python3 plugin/scripts/bench.py battle --a /plain-claude --b /my-plugin:brainstorm --problem product-01
+python3 plugin/scripts/bench.py judge --a runs/x/ --b runs/y/ --battles 3 --workers 4
+python3 plugin/scripts/bench.py report
 ```
-
-`bench` is installed as a script (see `[project.scripts]` in
-`pyproject.toml`). `python -m cli` works identically.
-
-## Architecture in one paragraph
-
-Each brainstorming system is wrapped in an `Adapter` (`adapters/base.py`).
-An adapter's `generate(problem)` returns a `Response` containing `Idea`
-objects parsed from verbatim raw output via `parse_ideas`. Running an
-adapter over `problems/v1.yaml` produces a directory of per-problem JSON
-files. `metrics/` consumes those files and emits absolute scores.
-`judge/pairwise.py` runs blinded pairwise battles between two run
-directories using a different Anthropic model family than the generators;
-results are canonicalized (order-normalized so "A" always refers to the
-first run directory) and fed into `judge/elo.py`, which produces the
-markdown leaderboard.
 
 ## Cross-file invariants to preserve
 
-- **Frozen files are frozen.** `problems/v1.yaml` and
-  `judge/rubric_v1.md` must never be edited. If you need to change them,
-  add `v2.yaml` / `rubric_v2.md` instead — historical runs pin the version
-  they used, and comparability across runs depends on immutability.
-- **No brainstorm-kit imports.** `adapters/brainstorm_kit.py` must only
-  talk to the plugin externally (CLI subprocess or replicated SDK prompt).
-  Never import brainstorm-kit code — the benchmark is explicitly
-  tool-agnostic.
-- **Judge ≠ generator family.** Generators use `claude-opus-4-6`; the
-  judge uses `claude-sonnet-4-6` (see `_JUDGE_MODEL` in
-  `judge/pairwise.py`). `PairwiseJudge.check_family_disjoint` warns when
-  this invariant is violated at runtime.
+- **Judge ≠ generator family.** Generators use `claude-opus-4-6`
+  (`GENERATOR_MODEL` in `plugin/scripts/bench.py`); the judge uses
+  `claude-sonnet-4-6` (`JUDGE_MODEL`). Preserve this split — aggregate
+  judgments across a shared family produce self-evaluation bias.
 - **Position-normalization.** The judge sees responses in randomized A/B
-  order per battle. `SingleBattle.order` records which position the
-  canonical `a_system` occupied; `judge/elo.canonicalize` uses this to
-  flip verdicts back before Elo processing. Any new aggregation code must
-  respect `order`.
+  order per battle. Each `SingleBattle` records `order` ∈ {`A_first`,
+  `B_first`}; `canonicalize()` uses this to flip verdicts back to the
+  canonical A/B (= CLI `--a`/`--b`) before Elo processing. Any new
+  aggregation code must respect `order`.
 - **Model strings are exact.** `claude-opus-4-6` / `claude-sonnet-4-6`.
-  No date suffixes. Adaptive thinking (`thinking={"type": "adaptive"}`),
-  no `budget_tokens`.
-- **Two transports, CLI is default.** `adapters/_transport.py` centralizes
-  the choice between `cli` (`claude -p` subprocess, subscription auth) and
-  `api` (Anthropic SDK, `ANTHROPIC_API_KEY`). `default_transport()` picks
-  `cli` when `claude` is on PATH, else `api`; `BENCH_TRANSPORT=cli|api`
-  forces. Every generator and the judge must go through this module — no
-  new direct `Anthropic()` calls outside `_transport.py`.
+  No date suffixes.
+- **`claude -p` transport.** Both generators and judge go through
+  `claude_p()` in `plugin/scripts/bench.py`. Generator calls pass
+  `--dangerously-skip-permissions` when `--allow-everything` is set
+  (needed for skills that read their own technique files). Judge calls
+  pair `--json-schema` with `--output-format json` and extract
+  `.structured_output` from the envelope — `--json-schema` alone returns
+  markdown.
+- **Problem set lives with the plugin.** `plugin/scripts/problems/v1.json`
+  is the canonical problem set; the researcher path doesn't own it. Since
+  no historical benchmarks exist, v1 is editable; once results are
+  published, add `v2.json` instead.
+- **Rubric is frozen at the plugin.** `plugin/scripts/rubrics/rubric_v1.md`.
+  Same versioning rule as the problem set.
 
 ## Testing notes
 
-`tests/conftest.py` patches `metrics._embeddings.embed` with a deterministic
-hashed-bag-of-words fake so the suite never pulls the real
+`tests/conftest.py` patches `metrics._embeddings.embed` with a
+deterministic hashed-bag-of-words fake so the suite never pulls the real
 sentence-transformers checkpoint over the network. Any new metric module
 that imports `embed` directly (`from metrics._embeddings import embed`)
-must also be added to the monkeypatch loop in `_patch_embed` — note the
-loop uses `importlib.import_module` because `metrics/__init__.py`
-re-exports function names that shadow the submodule attributes.
+must also be added to the monkeypatch loop in `_patch_embed` — the loop
+uses `importlib.import_module` because `metrics/__init__.py` re-exports
+function names that shadow the submodule attributes.
 
-Tests for the judge use a `_FakeClient` in `tests/test_judge.py` rather than
-hitting the Anthropic API.
-
-## Claude Code integration
-
-The repo ships as a Claude Code plugin distributed via a single-plugin
-marketplace:
+## Claude Code plugin layout
 
 - `.claude-plugin/marketplace.json` — exposes the repo to
   `/plugin marketplace add mgoldwasser/BrainstormingBench`. Its `source`
-  field must point at a subdirectory (`./plugin`) — the schema rejects a
+  field must point at a subdirectory (`./plugin`); the schema rejects a
   bare `.` even though the plugin is in the same repo.
 - `plugin/.claude-plugin/plugin.json` — plugin manifest.
 - `plugin/commands/*.md` — slash commands (`/brainstormingbench:battle`,
-  `:run`, `:judge`, `:metrics`, `:leaderboard`).
+  `:run`, `:judge`, `:metrics`, `:leaderboard`). All wrap
+  `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench.py" <subcmd>`.
+- `plugin/scripts/bench.py` — the stdlib plugin runner.
+- `plugin/scripts/problems/v1.json`, `plugin/scripts/rubrics/rubric_v1.md`
+  — frozen artifacts consumed by `bench.py`.
 - `plugin/agents/brainstorm-runner.md` — subagent that runs a single
   brainstorming skill on a single problem. Designed to be spawned N-up
-  in parallel from the main session for multi-system evaluations.
+  in parallel from the main session.
 - `plugin/skills/brainstorming-eval/SKILL.md` — auto-loads when the
-  session is working on creativity benchmarking; primes Claude with the
+  session is doing creativity benchmarking; primes Claude with the
   "pairwise > absolute, blind judging, frozen rubric" mental model.
 
 When editing any of these:
 
 - Slash commands and subagents must never brainstorm or judge themselves;
-  they always defer to `bench <subcommand>`. Keeping this boundary clean
-  is what makes the benchmark's results reproducible outside a Claude Code
-  session.
-- The `ClaudeSkillAdapter` (`adapters/claude_skill.py`) is how arbitrary
-  slash commands become benchmark adapters. `_build_adapter` auto-wraps
-  anything starting with `/` into a `ClaudeSkillAdapter`. The template
-  must contain `{problem}` (added automatically if absent).
-- `bench battle` is the one-shot head-to-head used by
-  `/brainstormingbench:battle`. It writes `runs/battle-<ts>/{A,B}/*.json`
-  and `runs/battle-<ts>/battle.json`, and prints a verdict summary.
-- The `brainstorm-runner` subagent takes `(skill, problem, out_dir)` and
-  is deliberately a thin wrapper around `bench run` / `claude -p`. If you
-  add features, add them to the CLI, not the subagent.
+  they always defer to `bench.py <subcommand>`. Keeping this boundary
+  clean is what makes the benchmark's results reproducible outside a
+  Claude Code session.
+- Any `/slash-command` string is accepted as a system spec by `bench.py`.
+  The script passes the problem text as `$ARGUMENTS` via `claude -p`.
+- `bench battle` writes `runs/battle-<ts>/{A,B}/*.json` and
+  `runs/battle-<ts>/battle.json`, and prints a verdict summary.
 
 ## File layout (high signal only)
 
-- `adapters/base.py` — `Adapter` ABC, `Idea`, `Response`, and `parse_ideas`
-  (bullets → numbered → paragraphs → sentence fallback).
-- `adapters/claude_skill.py` — generic `/slash-command` adapter. Shells out
-  to `claude -p` per problem; tests fake `subprocess.run`.
-- `metrics/_embeddings.py` — singleton sentence-transformers loader.
-  Keep all network-touching code here so conftest can patch a single
-  surface.
-- `judge/pairwise.py` — judge orchestration, Pydantic `JudgeOutput` schema,
-  and family-disjoint sanity checks.
-- `judge/elo.py` — canonicalization, Elo update, bootstrap CIs,
-  `EloLeaderboard.to_markdown`.
-- `cli.py` — Click group with `run`, `battle`, `metrics`, `judge`, `report`.
-  Adapter spec parsing lives in `_build_adapter`.
-- `.claude-plugin/marketplace.json` — marketplace manifest at repo root.
-- `plugin/.claude-plugin/plugin.json` + `plugin/commands/*.md` — Claude
-  Code plugin surface. Slash commands are thin wrappers over the CLI.
+- `plugin/scripts/bench.py` — stdlib plugin runner; subcommands `run`,
+  `battle`, `judge`, `report`. Hosts `claude_p()`, `parse_ideas()`,
+  `canonicalize()`, `update_ratings()`, `bootstrap_cis()`,
+  `parse_judge_envelope()`, `leaderboard_markdown()`.
+- `metrics/_types.py` — local `Response`/`Idea` dataclasses; mirror the
+  on-disk JSON so `load_response` parses any `bench.py`-produced file.
+- `metrics/_embeddings.py` — singleton sentence-transformers loader; keep
+  all network-touching code here so conftest can patch a single surface.
+- `cli.py` — stdlib-only researcher CLI; exposes `bench metrics` only.

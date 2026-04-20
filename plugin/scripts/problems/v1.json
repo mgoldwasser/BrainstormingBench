@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "frozen_at": "2026-04-12",
+  "problems": [
+    {
+      "id": "product-01",
+      "category": "product",
+      "horizon": "medium",
+      "domain_knowledge": "neutral",
+      "prompt": "How might a small indie bookstore compete with Amazon?"
+    },
+    {
+      "id": "product-02",
+      "category": "product",
+      "horizon": "short",
+      "domain_knowledge": "neutral",
+      "prompt": "Ways to make a standing desk more useful beyond just standing."
+    },
+    {
+      "id": "product-03",
+      "category": "product",
+      "horizon": "medium",
+      "domain_knowledge": "neutral",
+      "prompt": "Reimagine the household dishwasher for a one-bedroom apartment."
+    },
+    {
+      "id": "product-04",
+      "category": "product",
+      "horizon": "medium",
+      "domain_knowledge": "helps",
+      "prompt": "Design a subscription service for people who have just been diagnosed with a chronic illness."
+    },
+    {
+      "id": "product-05",
+      "category": "product",
+      "horizon": "short",
+      "domain_knowledge": "helps",
+      "prompt": "Make a common smartphone more useful for people with low vision without relying on existing accessibility features."
+    },
+    {
+      "id": "product-06",
+      "category": "product",
+      "horizon": "long",
+      "domain_knowledge": "neutral",
+      "prompt": "Propose a physical product that would reduce our dependence on smartphones for everyday tasks."
+    },
+    {
+      "id": "social-01",
+      "category": "social",
+      "horizon": "medium",
+      "domain_knowledge": "neutral",
+      "prompt": "How to get people to actually follow through on New Year's resolutions."
+    },
+    {
+      "id": "social-02",
+      "category": "social",
+      "horizon": "medium",
+      "domain_knowledge": "neutral",
+      "prompt": "Get teenagers to read books for pleasure in an attention economy dominated by short-form video."
+    },
+    {
+      "id": "social-03",
+      "category": "social",
+      "horizon": "long",
+      "domain_knowledge": "unhelpful",
+      "prompt": "Reduce loneliness among people over 70 who live alone."
+    },
+    {
+      "id": "social-04",
+      "category": "social",
+      "horizon": "short",
+      "domain_knowledge": "neutral",
+      "prompt": "Make recurring team meetings at a large company feel valuable rather than obligatory."
+    },
+    {
+      "id": "social-05",
+      "category": "social",
+      "horizon": "medium",
+      "domain_knowledge": "neutral",
+      "prompt": "Reduce smartphone overuse without relying on screen-time tracking apps or notifications."
+    },
+    {
+      "id": "social-06",
+      "category": "social",
+      "horizon": "long",
+      "domain_knowledge": "unhelpful",
+      "prompt": "Encourage neighbors in a dense urban apartment building to actually know each other."
+    },
+    {
+      "id": "tech-01",
+      "category": "tech",
+      "horizon": "medium",
+      "domain_knowledge": "helps",
+      "prompt": "Reduce tail latency in a globally distributed database without adding replicas."
+    },
+    {
+      "id": "tech-02",
+      "category": "tech",
+      "horizon": "long",
+      "domain_knowledge": "helps",
+      "prompt": "Migrate a 20-year-old monolithic Java application to a service-oriented architecture without downtime and without a freeze on feature work."
+    },
+    {
+      "id": "tech-03",
+      "category": "tech",
+      "horizon": "medium",
+      "domain_knowledge": "helps",
+      "prompt": "Cut the inference cost of serving a 70B-parameter LLM by 10x without retraining or distillation."
+    },
+    {
+      "id": "tech-04",
+      "category": "tech",
+      "horizon": "medium",
+      "domain_knowledge": "helps",
+      "prompt": "Detect AI-generated images at scale without training a dedicated classifier."
+    },
+    {
+      "id": "tech-05",
+      "category": "tech",
+      "horizon": "medium",
+      "domain_knowledge": "helps",
+      "prompt": "Extend laptop battery life by 50% on existing hardware, changing only software."
+    },
+    {
+      "id": "tech-06",
+      "category": "tech",
+      "horizon": "long",
+      "domain_knowledge": "helps",
+      "prompt": "Make a 40-year-old COBOL banking system easier for new engineers to maintain without rewriting it."
+    },
+    {
+      "id": "creative-01",
+      "category": "creative",
+      "horizon": "short",
+      "domain_knowledge": "neutral",
+      "prompt": "A novel format for a weekly podcast about science history."
+    },
+    {
+      "id": "creative-02",
+      "category": "creative",
+      "horizon": "medium",
+      "domain_knowledge": "unhelpful",
+      "prompt": "Design a museum exhibit about climate change that a visitor will still remember ten years later."
+    },
+    {
+      "id": "creative-03",
+      "category": "creative",
+      "horizon": "medium",
+      "domain_knowledge": "unhelpful",
+      "prompt": "Make contemporary poetry appealing to a 15-year-old who has never chosen to read a poem."
+    },
+    {
+      "id": "creative-04",
+      "category": "creative",
+      "horizon": "long",
+      "domain_knowledge": "neutral",
+      "prompt": "A video game whose primary mechanic teaches empathy, without being preachy or boring."
+    },
+    {
+      "id": "creative-05",
+      "category": "creative",
+      "horizon": "short",
+      "domain_knowledge": "unhelpful",
+      "prompt": "A 20-minute theatrical piece set entirely inside a grocery store during opening hours."
+    },
+    {
+      "id": "creative-06",
+      "category": "creative",
+      "horizon": "short",
+      "domain_knowledge": "neutral",
+      "prompt": "A writing exercise that reliably unblocks a novelist who has been stuck for three months."
+    },
+    {
+      "id": "civic-01",
+      "category": "civic",
+      "horizon": "long",
+      "domain_knowledge": "neutral",
+      "prompt": "How to reduce single-occupancy car commuting in a mid-size city."
+    },
+    {
+      "id": "civic-02",
+      "category": "civic",
+      "horizon": "medium",
+      "domain_knowledge": "neutral",
+      "prompt": "Reduce food waste at a regional grocery chain without raising consumer prices."
+    },
+    {
+      "id": "civic-03",
+      "category": "civic",
+      "horizon": "medium",
+      "domain_knowledge": "neutral",
+      "prompt": "Increase voter turnout in local (non-presidential) elections in the United States."
+    },
+    {
+      "id": "civic-04",
+      "category": "civic",
+      "horizon": "long",
+      "domain_knowledge": "helps",
+      "prompt": "Expand access to primary healthcare in rural counties that cannot recruit full-time physicians."
+    },
+    {
+      "id": "civic-05",
+      "category": "civic",
+      "horizon": "medium",
+      "domain_knowledge": "neutral",
+      "prompt": "Make public libraries central civic institutions again, for people who do not currently visit them."
+    },
+    {
+      "id": "civic-06",
+      "category": "civic",
+      "horizon": "long",
+      "domain_knowledge": "helps",
+      "prompt": "Reduce recidivism among people released from prison without increasing the carceral footprint."
+    }
+  ]
+}

@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from adapters.base import Response
+from metrics._types import Response
 from metrics._embeddings import embed
 from metrics.fluency import distinct_texts
 
